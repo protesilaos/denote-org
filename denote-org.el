@@ -974,7 +974,7 @@ DEPTH of the root FILE is 1. Using 2 lists children, 3 grandchildren, and so on.
     (interactive
      (list
       (denote-sequence-file-prompt "List descendants of")
-      (denote-sequence-depth-prompt "Maximum relative depth from root node: " 2))
+      (denote-sequence-depth-prompt "Maximum relative depth from root node: "))
      org-mode)
     (org-create-dblock (list :name "denote-sequence"
                              :sequence (denote-retrieve-filename-signature file)
