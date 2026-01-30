@@ -755,19 +755,61 @@ Used by `org-dblock-update' with PARAMS provided by the dynamic block."
                 (text (buffer-substring-no-properties match-end line-end)))
       (string-trim text))))
 
-(defun denote-org-dblock--get-file-contents-as-heading (file add-links exclude-tags)
+(defun denote-org-dblock--adjust-headings (heading-level)
+  "Adjust headings in current buffer based on HEADING-LEVEL.
+HEADING-LEVEL can be an integer (absolute mode) or string like \"+1\" (relative mode)."
+  (let* ((spec (or heading-level "+1"))
+         (is-relative (stringp spec))
+         (value (cond ((and (stringp spec)
+                            (string-match "^\\([+-]\\)\\([0-9]+\\)$" spec))
+                       (let ((num (string-to-number (match-string 2 spec))))
+                         (if (string= (match-string 1 spec) "+") num (- num))))
+                      ((numberp spec) spec)
+                      (t 1)))
+         (shift (if is-relative
+                    value
+                  (let ((min-level nil))
+                    (save-excursion
+                      (goto-char (point-min))
+                      (while (re-search-forward "^\\(*+\\) " nil t)
+                        (let ((level (length (match-string 1))))
+                          (setq min-level (if min-level (min min-level level) level)))))
+                    (if min-level (- value min-level) 0)))))
+    (goto-char (point-min))
+    (cond
+     ((> shift 0)
+      (while (re-search-forward "^\\(*+\\) " nil :no-error)
+        (replace-match (format "%s\\1 " (make-string shift ?*)))))
+     ((< shift 0)
+      (while (re-search-forward "^\\(*+\\) " nil :no-error)
+        (let* ((stars (match-string 1))
+               (level (length stars))
+               (new-level (max 1 (+ level shift))))
+          (replace-match (format "%s " (make-string new-level ?*)))))))))
+
+(defun denote-org-dblock--get-file-contents-as-heading (file add-links exclude-tags &optional title-heading-level heading-level)
   "Insert the contents of Org FILE, formatting the #+title as a heading.
 With optional ADD-LINKS, make the title link to the original file.  With
 optional EXCLUDE-TAGS, do not add the #+filetags to the end of the
-heading."
+heading.
+
+Optional TITLE-HEADING-LEVEL controls the heading level for the title.
+When nil, defaults to 1.  Must be an integer >= 1.
+
+Optional HEADING-LEVEL controls the heading levels for file content.
+When nil, defaults to \"+1\" (add one level to all content headings).
+Can be:
+- An integer >= 1 (absolute mode): minimum content heading becomes this level
+- A string like \"+2\" or \"-1\" (relative mode): offset applied to all headings"
   (when-let* ((_ (denote-file-has-denoted-filename-p file))
               (identifier (denote-retrieve-filename-identifier file))
               (file-type (denote-filetype-heuristics file))
               (_ (eq file-type 'org)))
     (with-temp-buffer
-      (let ((beginning-of-contents (point))
-            title
-            tags)
+      (let* ((beginning-of-contents (point))
+             (title-level (or title-heading-level 1))
+             title
+             tags)
         (insert-file-contents file)
         (setq title (denote-org-dblock--extract-regexp (denote--title-key-regexp file-type)))
         (setq tags (if exclude-tags
@@ -784,12 +826,17 @@ heading."
             (insert (format "* %s %s\n\n" title tags)))
           (unless exclude-tags
             (org-align-tags :all)))
-        (while (re-search-forward "^\\(*+?\\) " nil :no-error)
-          (replace-match (format "*%s " "\\1")))
+        (denote-org-dblock--adjust-headings heading-level)
+        (when title-heading-level
+          (goto-char beginning-of-contents)
+          (when (re-search-forward "^\\*" nil t)
+            (goto-char (match-beginning 0))
+            (delete-char 1)
+            (insert (make-string title-level ?*))))
         (denote-org-escape-code-in-region beginning-of-contents (point-max)))
       (buffer-string))))
 
-(defun denote-org-dblock-add-files-as-headings (regexp &optional add-links sort-by-component reverse excluded-dirs-regexp exclude-regexp exclude-tags)
+(defun denote-org-dblock-add-files-as-headings (regexp &optional add-links sort-by-component reverse excluded-dirs-regexp exclude-regexp exclude-tags title-heading-level heading-level)
   "Insert files matching REGEXP.
 
 If optional ADD-LINKS is non-nil, first insert a link to the file
@@ -811,12 +858,20 @@ Optional EXCLUDE-REGEXP is a more general way to exclude files whose
 name matches the given regular expression.
 
 Optional EXCLUDE-TAGS excludes the #+filetags from the end of the
-heading, where they are otherwise placed."
+heading, where they are otherwise placed.
+
+Optional TITLE-HEADING-LEVEL controls the heading level for titles.
+When nil, defaults to 1.  Must be an integer >= 1.
+
+Optional HEADING-LEVEL controls the heading levels for file content.
+When nil, defaults to \"+1\" (add one level to all content headings).
+Can be an integer >= 1 (absolute mode) or a string like \"+2\" or \"-1\"
+(relative mode)."
   (let* ((denote-excluded-directories-regexp (or excluded-dirs-regexp denote-excluded-directories-regexp))
          (files (denote-org-dblock--files regexp sort-by-component reverse exclude-regexp))
          (files-contents (mapcar
                           (lambda (file)
-                            (denote-org-dblock--get-file-contents-as-heading file add-links exclude-tags))
+                            (denote-org-dblock--get-file-contents-as-heading file add-links exclude-tags title-heading-level heading-level))
                           files)))
     (insert (string-join files-contents))))
 
@@ -839,6 +894,12 @@ was the #+title).
 Sort the files according to SORT-BY-COMPONENT, which is a symbol
 among `denote-sort-components'.
 
+The created dynamic block has default parameters :title-heading-level 1
+and :heading-level \"+1\", which can be modified to control heading levels:
+- :title-heading-level (integer >= 1): Sets the level for the title heading
+- :heading-level (integer >= 1 or string like \"+2\"): Controls content heading
+  levels in absolute or relative mode
+
 IMPORTANT NOTE: This dynamic block only works with Org files, because it
 has to assume the Org notation in order to insert each file's contents
 as its own heading."
@@ -854,7 +915,9 @@ as its own heading."
                            :sort-by-component sort-by-component
                            :reverse-sort nil
                            :add-links nil
-                           :exclude-tags nil))
+                           :exclude-tags nil
+                           :title-heading-level 1
+                           :heading-level "+1"))
   (org-update-dblock))
 
 ;;;###autoload
@@ -868,9 +931,11 @@ Used by `org-dblock-update' with PARAMS provided by the dynamic block."
          (block-name (plist-get params :block-name))
          (add-links (plist-get params :add-links))
          (exclude-tags (plist-get params :exclude-tags))
-         (excluded-dirs (plist-get params :excluded-dirs-regexp)))
+         (excluded-dirs (plist-get params :excluded-dirs-regexp))
+         (title-heading-level (plist-get params :title-heading-level))
+         (heading-level (plist-get params :heading-level)))
     (when block-name (insert "#+name: " block-name "\n"))
-    (when rx (denote-org-dblock-add-files-as-headings rx add-links sort reverse excluded-dirs not-rx exclude-tags)))
+    (when rx (denote-org-dblock-add-files-as-headings rx add-links sort reverse excluded-dirs not-rx exclude-tags title-heading-level heading-level)))
   (join-line)) ; remove trailing empty line
 
 ;;;;; Dynamic block to insert hierarchic sequences
