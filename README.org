@@ -393,7 +393,7 @@ In its simplest form, this dynamic block looks like this, with
 Though when you use the command ~denote-org-dblock-insert-files-as-headings~
 you get all the parameters included:
 
-: #+BEGIN: denote-files-as-headings :regexp "YOUR REGEXP HERE" :not-regexp nil :excluded-dirs-regexp nil :sort-by-component title :reverse-sort nil :add-links nil :exclude-tags nil
+: #+BEGIN: denote-files-as-headings :regexp "YOUR REGEXP HERE" :not-regexp nil :excluded-dirs-regexp nil :sort-by-component title :reverse-sort nil :add-links nil :exclude-tags nil :title-heading-level 1 :heading-level "+1"
 :
 : #+END:
 
@@ -445,6 +445,32 @@ you get all the parameters included:
   =#+filetags= of the matching file are appended to the title as tags.
   This is what happens by default. If =:exclude-tags= is non-nil, then
   the tags are omitted.
+
+- The =:title-heading-level= parameter is optional. It controls the
+  heading level for the file title. When nil, defaults to 1 (making
+  the title a top-level heading =*=). Must be an integer >= 1.
+  For example, =:title-heading-level 2= makes the title a level-2
+  heading =**=.
+
+- The =:heading-level= parameter is optional. It controls the heading
+  levels for file content. When nil, defaults to ="+1"= (add one level
+  to all content headings, which is the current behavior). This
+  parameter supports two modes:
+  - *Absolute mode* (integer >= 1): Set the minimum content heading to
+    a specific level. Content headings are shifted so the minimum
+    heading in the file becomes the specified level. For example,
+    =:heading-level 2= makes the minimum content heading =**=. If the
+    original file has =***= and =****=, they become =**= and =***=.
+  - *Relative mode* (string like ="+2"= or ="-1"=): Apply a fixed
+    offset to all content headings. For example, =:heading-level "+2"=
+    adds two levels to all headings, and =:heading-level "-1"=
+    subtracts one level (clamped to a minimum of level 1).
+
+  The =:title-heading-level= and =:heading-level= parameters work
+  independently, allowing fine control over document structure. For
+  example, you can have the title at level 2 and content minimum at
+  level 2 (same level), or title at level 1 and content minimum at
+  level 2 (making content sub-headings of the title).
 
 - An optional =:block-name= parameter can be specified with a string
   value to add a =#+name= to the results. This is useful for further
