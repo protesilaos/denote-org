@@ -636,7 +636,7 @@ argument.
 
 Optional HEADING-LEVEL controls the heading levels for file content.
 When nil, headings are left unchanged.  Can be an integer >= 1
-(absolute mode) or a string like \"+2\" or \"-1\" (relative mode)."
+\(absolute mode) or a string like \"+2\" or \"-1\" (relative mode)."
   (when (denote-file-has-denoted-filename-p file)
     (with-temp-buffer
       (when add-links
@@ -704,7 +704,7 @@ name matches the given regular expression.
 
 Optional HEADING-LEVEL controls the heading levels for file content.
 When nil, headings are left unchanged.  Can be an integer >= 1
-(absolute mode) or a string like \"+2\" or \"-1\" (relative mode)."
+\(absolute mode) or a string like \"+2\" or \"-1\" (relative mode)."
   (let* ((denote-excluded-directories-regexp (or excluded-dirs-regexp denote-excluded-directories-regexp))
          (files (denote-org-dblock--files regexp sort-by-component reverse exclude-regexp))
          (files-contents (mapcar
@@ -724,7 +724,7 @@ Sort the files according to SORT-BY-COMPONENT, which is a symbol
 among `denote-sort-components'.
 
 The created dynamic block has a :heading-level parameter
-(default nil) which can be modified to control heading levels in
+\(default nil) which can be modified to control heading levels in
 the inserted content.  It accepts an integer >= 1 (absolute mode)
 or a string like \"+2\" or \"-1\" (relative mode)."
   (interactive
@@ -816,8 +816,10 @@ When nil, defaults to 1.  Must be an integer >= 1.
 Optional HEADING-LEVEL controls the heading levels for file content.
 When nil, defaults to \"+1\" (add one level to all content headings).
 Can be:
-- An integer >= 1 (absolute mode): minimum content heading becomes this level
-- A string like \"+2\" or \"-1\" (relative mode): offset applied to all headings"
+- An integer >= 1 (absolute mode): minimum content heading becomes
+  this level
+- A string like \"+2\" or \"-1\" (relative mode): offset applied to
+  all headings"
   (when-let* ((_ (denote-file-has-denoted-filename-p file))
               (identifier (denote-retrieve-filename-identifier file))
               (file-type (denote-filetype-heuristics file))
@@ -839,17 +841,16 @@ Can be:
         (goto-char beginning-of-contents)
         (when (and title tags)
           (if add-links
-              (insert (format "* [[denote:%s][%s]] %s\n\n" identifier title tags))
-            (insert (format "* %s %s\n\n" title tags)))
+              (insert (format "%s [[denote:%s][%s]] %s\n\n"
+                              (make-string title-level ?*) identifier title tags))
+            (insert (format "%s %s %s\n\n"
+                            (make-string title-level ?*) title tags)))
           (unless exclude-tags
-            (org-align-tags :all)))
-        (denote-org-dblock--adjust-headings heading-level)
-        (when title-heading-level
+            (org-align-tags :all))
+          ;; Move past the title heading we just inserted
           (goto-char beginning-of-contents)
-          (when (re-search-forward "^\\*" nil t)
-            (goto-char (match-beginning 0))
-            (delete-char 1)
-            (insert (make-string title-level ?*))))
+          (forward-line 2))
+        (denote-org-dblock--adjust-headings heading-level)
         (denote-org-escape-code-in-region beginning-of-contents (point-max)))
       (buffer-string))))
 
@@ -882,8 +883,8 @@ When nil, defaults to 1.  Must be an integer >= 1.
 
 Optional HEADING-LEVEL controls the heading levels for file content.
 When nil, defaults to \"+1\" (add one level to all content headings).
-Can be an integer >= 1 (absolute mode) or a string like \"+2\" or \"-1\"
-(relative mode)."
+Can be an integer >= 1 (absolute mode) or a string like \"+2\" or
+\"-1\" (relative mode)."
   (let* ((denote-excluded-directories-regexp (or excluded-dirs-regexp denote-excluded-directories-regexp))
          (files (denote-org-dblock--files regexp sort-by-component reverse exclude-regexp))
          (files-contents (mapcar
@@ -911,11 +912,13 @@ was the #+title).
 Sort the files according to SORT-BY-COMPONENT, which is a symbol
 among `denote-sort-components'.
 
-The created dynamic block has default parameters :title-heading-level 1
-and :heading-level \"+1\", which can be modified to control heading levels:
-- :title-heading-level (integer >= 1): Sets the level for the title heading
-- :heading-level (integer >= 1 or string like \"+2\"): Controls content heading
-  levels in absolute or relative mode
+The created dynamic block has default parameters
+:title-heading-level 1 and :heading-level \"+1\", which can be
+modified to control heading levels:
+- :title-heading-level (integer >= 1): Sets the level for the
+  title heading
+- :heading-level (integer >= 1 or string like \"+2\"): Controls
+  content heading levels in absolute or relative mode
 
 IMPORTANT NOTE: This dynamic block only works with Org files, because it
 has to assume the Org notation in order to insert each file's contents
