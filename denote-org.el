@@ -621,7 +621,7 @@ Operate on the region between positions BEG and END."
     (while (re-search-backward "^[ \t]*\\(#\\+\\)" beg t)
       (save-excursion (replace-match "​\\1" nil nil nil 1)))))
 
-(defun denote-org-dblock--get-file-contents (file &optional no-front-matter add-links)
+(defun denote-org-dblock--get-file-contents (file &optional no-front-matter add-links heading-level)
   "Insert the contents of FILE.
 With optional NO-FRONT-MATTER as non-nil, try to remove the front
 matter from the top of the file.  If NO-FRONT-MATTER is a number,
@@ -632,7 +632,11 @@ With optional ADD-LINKS as non-nil, first insert a link to the
 file and then insert its contents.  In this case, format the
 contents as a typographic list.  If ADD-LINKS is `id-only', then
 insert links as `denote-link' does when supplied with an ID-ONLY
-argument."
+argument.
+
+Optional HEADING-LEVEL controls the heading levels for file content.
+When nil, headings are left unchanged.  Can be an integer >= 1
+(absolute mode) or a string like \"+2\" or \"-1\" (relative mode)."
   (when (denote-file-has-denoted-filename-p file)
     (with-temp-buffer
       (when add-links
@@ -653,6 +657,9 @@ argument."
            beginning-of-contents))
         (when add-links
           (indent-region beginning-of-contents (point-max) 2))
+        (when heading-level
+          (goto-char beginning-of-contents)
+          (denote-org-dblock--adjust-headings heading-level))
         (denote-org-escape-code-in-region beginning-of-contents (point-max)))
       (buffer-string))))
 
@@ -667,7 +674,7 @@ argument."
    ((stringp separator) separator)
    (t denote-org-dblock-file-contents-separator)))
 
-(defun denote-org-dblock-add-files (regexp &optional separator no-front-matter add-links sort-by-component reverse excluded-dirs-regexp exclude-regexp)
+(defun denote-org-dblock-add-files (regexp &optional separator no-front-matter add-links sort-by-component reverse excluded-dirs-regexp exclude-regexp heading-level)
   "Insert files matching REGEXP.
 
 Seaprate them with the optional SEPARATOR.  If SEPARATOR is nil,
@@ -693,11 +700,15 @@ Optional EXCLUDED-DIRS-REGEXP is the `let' bound value of
 that user option is used.
 
 Optional EXCLUDE-REGEXP is a more general way to exclude files whose
-name matches the given regular expression."
+name matches the given regular expression.
+
+Optional HEADING-LEVEL controls the heading levels for file content.
+When nil, headings are left unchanged.  Can be an integer >= 1
+(absolute mode) or a string like \"+2\" or \"-1\" (relative mode)."
   (let* ((denote-excluded-directories-regexp (or excluded-dirs-regexp denote-excluded-directories-regexp))
          (files (denote-org-dblock--files regexp sort-by-component reverse exclude-regexp))
          (files-contents (mapcar
-                          (lambda (file) (denote-org-dblock--get-file-contents file no-front-matter add-links))
+                          (lambda (file) (denote-org-dblock--get-file-contents file no-front-matter add-links heading-level))
                           files)))
     (insert (string-join files-contents (denote-org-dblock--separator separator)))))
 
@@ -710,7 +721,12 @@ name matches the given regular expression."
 (defun denote-org-dblock-insert-files (regexp sort-by-component)
   "Create Org dynamic block to insert Denote files matching REGEXP.
 Sort the files according to SORT-BY-COMPONENT, which is a symbol
-among `denote-sort-components'."
+among `denote-sort-components'.
+
+The created dynamic block has a :heading-level parameter
+(default nil) which can be modified to control heading levels in
+the inserted content.  It accepts an integer >= 1 (absolute mode)
+or a string like \"+2\" or \"-1\" (relative mode)."
   (interactive
    (list
     (denote-files-matching-regexp-prompt)
@@ -724,7 +740,8 @@ among `denote-sort-components'."
                            :reverse-sort nil
                            :no-front-matter nil
                            :file-separator nil
-                           :add-links nil))
+                           :add-links nil
+                           :heading-level nil))
   (org-update-dblock))
 
 ;;;###autoload
@@ -739,9 +756,10 @@ Used by `org-dblock-update' with PARAMS provided by the dynamic block."
          (separator (plist-get params :file-separator))
          (no-f-m (plist-get params :no-front-matter))
          (add-links (plist-get params :add-links))
-         (excluded-dirs (plist-get params :excluded-dirs-regexp)))
+         (excluded-dirs (plist-get params :excluded-dirs-regexp))
+         (heading-level (plist-get params :heading-level)))
     (when block-name (insert "#+name: " block-name "\n"))
-    (when rx (denote-org-dblock-add-files rx separator no-f-m add-links sort reverse excluded-dirs not-rx)))
+    (when rx (denote-org-dblock-add-files rx separator no-f-m add-links sort reverse excluded-dirs not-rx heading-level)))
   (join-line)) ; remove trailing empty line
 
 ;;;; Insert files as headings
@@ -756,8 +774,9 @@ Used by `org-dblock-update' with PARAMS provided by the dynamic block."
       (string-trim text))))
 
 (defun denote-org-dblock--adjust-headings (heading-level)
-  "Adjust headings in current buffer based on HEADING-LEVEL.
-HEADING-LEVEL can be an integer (absolute mode) or string like \"+1\" (relative mode)."
+  "Adjust headings from current point based on HEADING-LEVEL.
+HEADING-LEVEL can be an integer (absolute mode) or string like
+\"+1\" (relative mode)."
   (let* ((spec (or heading-level "+1"))
          (is-relative (stringp spec))
          (value (cond ((and (stringp spec)
