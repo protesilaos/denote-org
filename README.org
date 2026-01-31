@@ -272,7 +272,7 @@ or manually write the following block in an Org file and then type
  =C-c C-x C-u= (~org-dblock-update~) on the =#+BEGIN= line to run it
 (do it again to recalculate the block):
 
-: #+BEGIN: denote-files :regexp "YOUR REGEXP HERE" :not-regexp nil :sort-by-component nil :reverse-sort nil :no-front-matter nil :file-separator nil :add-links nil
+: #+BEGIN: denote-files :regexp "YOUR REGEXP HERE" :not-regexp nil :sort-by-component nil :reverse-sort nil :no-front-matter nil :file-separator nil :add-links nil :heading-level nil
 :
 : #+END:
 
@@ -355,6 +355,17 @@ parameters, which are described further below:
   Org can fold the items in a typographic list the same way it does
   with headings. So even long files can be presented in this format
   without much trouble.
+
+- The =:heading-level= parameter is optional. It controls the heading
+  levels for inserted file content. When nil (the default), headings in
+  the file content are left unchanged. This parameter supports two modes:
+  - An integer >= 1 (absolute mode): Sets the minimum content heading to
+    a specific level. Content headings are shifted so the minimum heading
+    in the file becomes the specified level. For example, =:heading-level 2=
+    makes the minimum content heading =**=.
+  - A string like ="+2"= or ="-1"= (relative mode): Applies a fixed offset
+    to all content headings. For example, =:heading-level "+2"= adds two
+    levels to all headings.
 
 - An optional =:block-name= parameter can be specified with a string
   value to add a =#+name= to the results. This is useful for further
