@@ -789,12 +789,10 @@ HEADING-LEVEL can be an integer (absolute mode) or string like
                     value
                   (let ((min-level nil))
                     (save-excursion
-                      (goto-char (point-min))
                       (while (re-search-forward "^\\(*+\\) " nil t)
                         (let ((level (length (match-string 1))))
                           (setq min-level (if min-level (min min-level level) level)))))
                     (if min-level (- value min-level) 0)))))
-    (goto-char (point-min))
     (cond
      ((> shift 0)
       (while (re-search-forward "^\\(*+\\) " nil :no-error)
