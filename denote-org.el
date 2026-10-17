@@ -703,7 +703,7 @@ name matches the given regular expression."
   "As part of making `denote-org' a standalone package")
 
 ;;;###autoload
-(defun denote-org-dblock-insert-files (regexp sort-by-component)
+(defun denote-org-dblock-insert-files (regexp sort-by-component &optional file-separator add-links)
   "Create Org dynamic block to insert Denote files matching REGEXP.
 Sort the files according to SORT-BY-COMPONENT, which is a symbol
 among `denote-sort-components'."
@@ -719,8 +719,8 @@ among `denote-sort-components'."
                            :sort-by-component sort-by-component
                            :reverse-sort nil
                            :no-front-matter nil
-                           :file-separator nil
-                           :add-links nil))
+                           :file-separator file-separator
+                           :add-links add-links))
   (org-update-dblock))
 
 ;;;###autoload
@@ -960,6 +960,26 @@ Used by `org-dblock-update' with PARAMS provided by the dynamic block."
         (when block-name (insert "#+name: " block-name "\n"))
         (denote-org--insert-sequence files)
         (join-line)))))
+
+
+;; FIXME: Should we use keywords to mark automatically produced concatenated
+;; lists of notes, or maybe signatures? Or nothing at all?
+(defvar denote-org-concatenate-last-query-files-keywords (list "dynview"))
+
+
+;; FIXME: Make it work from dired listings too, think about a similar embark-exporter
+(defun denote-org-concatenate-last-query-files ()
+  "Create a new note of type `org' with a dynamic block, that stores the
+last denote query and displays contents of the files matching that query."
+  (interactive)
+  ;; FIXME: need a clever way of generating a title and keywords for the new note, ideas?
+  (denote denote-query--last-query
+		  denote-org-concatenate-last-query-files-keywords
+		  'org)
+  (denote-org-dblock-insert-files denote-query--last-query 'identifier t t))
+
+(define-key denote-query-mode-map (kbd "E") #'denote-org-concatenate-last-query-files)
+
 
 ;; NOTE 2024-03-30: This is how the autoload is done in org.el.
 ;;;###autoload
